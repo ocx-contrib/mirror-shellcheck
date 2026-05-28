@@ -13,6 +13,8 @@ on:
     paths:
       - mirror.yml
       - scripts/**
+      - tests/**
+      - metadata*.json
       - .github/workflows/mirror.yml
 
 concurrency:
