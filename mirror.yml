@@ -14,10 +14,19 @@ assets:
     - "shellcheck-.*\\.linux\\.x86_64\\.tar\\.xz$"
   linux/arm64:
     - "shellcheck-.*\\.linux\\.aarch64\\.tar\\.xz$"
+  darwin/amd64:
+    - "shellcheck-.*\\.darwin\\.x86_64\\.tar\\.xz$"
+  darwin/arm64:
+    - "shellcheck-.*\\.darwin\\.aarch64\\.tar\\.xz$"
+  windows/amd64:
+    - "shellcheck-.*\\.zip$"
 
 asset_type:
   type: archive
-  strip_components: 1
+  strip_components:
+    default: 1
+    platforms:
+      windows/amd64: 0
 
 metadata:
   default: metadata.json
@@ -51,6 +60,15 @@ platforms:
     runner: ubuntu-latest
   linux/arm64:
     runner: ubuntu-24.04-arm
+  darwin/amd64:
+    runner: macos-latest
+    prefix: ["arch", "-x86_64"]
+  darwin/arm64:
+    runner: macos-latest
+    shell: bash
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
 
 notify:
   discord:
