@@ -17,3 +17,12 @@ ShellCheck is a static analysis tool that finds bugs in Bash, sh, and other shel
 - [ShellCheck Documentation](https://www.shellcheck.net)
 - [ShellCheck on GitHub](https://github.com/koalaman/shellcheck)
 - [ShellCheck Wiki](https://github.com/koalaman/shellcheck/wiki)
+
+## License & source
+
+The ShellCheck binaries redistributed here are licensed **GPL-3.0** (© Vidar
+Holen). The complete Corresponding Source for each mirrored version is available
+from the upstream tagged tree — e.g. version `X.Y.Z` at
+<https://github.com/koalaman/shellcheck/releases/tag/vX.Y.Z>, or `git clone
+https://github.com/koalaman/shellcheck && git checkout vX.Y.Z`. The OCX mirror
+pipeline files are Apache-2.0. See `NOTICE.md` for full details.
