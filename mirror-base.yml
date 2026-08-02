@@ -1,0 +1,104 @@
+# Shared base for every spec in this repository (ShellCheck).
+#
+# NOT a spec: it has no name/target/source and is never loaded on its own.
+# Everything a package owns — name, target, source, assets, asset_type,
+# metadata, catalog, tests, versions, announce, annotations — stays in that
+# package's own mirror.yml.
+#
+# ⚠️ `extends:` is a SHALLOW merge of top-level keys. A spec that sets a key
+# below replaces that block OUTRIGHT — there is no per-key merge. `platforms:`
+# is where this bites: it carries BOTH the runner matrix and the container
+# legs, so a child that restates it to tweak one runner silently drops every
+# `containers:` entry. Nothing reds — the legs simply stop existing, and every
+# os.features claim in that spec goes back to being merely asserted. Restate
+# `platforms:` IN FULL or not at all.
+
+skip_prereleases: true
+cascade: true
+
+# `none` — carried over deliberately from this repo's pre-grouped spec, NOT the
+# `date` the other ported repos (github, astral-sh, kitware, bazelbuild) use.
+# The tradeoff: with no build segment a cascade re-publish reuses the bare
+# version tag, so the prior digest loses its only tag and becomes GC-eligible,
+# breaking any consumer `@sha256:` pin. ShellCheck versions as bare semver, so
+# switching to `date` would be safe (nothing to collide with) — it is a one-word
+# change here if the fleet standardises.
+build_timestamp: none
+
+verify:
+  github_asset_digest: true
+
+concurrency:
+  # Assets are ~2 MB xz / ~35 MB unpacked single-binary archives.
+  max_downloads: 8
+  max_bundles: 4
+  max_pushes: 2
+  rate_limit_ms: 100
+  max_retries: 3
+  compression_threads: 0
+
+# `off`, and the interface is frozen by hand instead — `binaries` in
+# metadata.json. NOT a preference: the scan needs a PATH entry pointing at a
+# `${installPath}/<subdir>`, and shellcheck's archives put the executable at
+# the CONTENT ROOT, so PATH is a bare `${installPath}`. `bin_scan: verify`
+# fails spec load outright on that (exit 65, "the verification would inspect no
+# file and pass green whatever the archive contains"), and `auto` validates but
+# scans nothing — the false-comfort option. A package added here that ships a
+# `bin/` subdir should override this to `verify` in its own spec.
+bin_scan: off
+
+# ─── Platform matrix ────────────────────────────────────────────────────────
+#
+# `os.features` states what an artifact REQUIRES OF THE HOST — it is not a
+# label for how it was built. Upstream publishes ONE Linux build per arch with
+# no libc variant in the filename (only a .tar.gz/.tar.xz compression split of
+# the same binary), and both are fully static — measured on v0.11.0, evidence
+# above shellcheck/mirror.yml's `assets:`. No PT_INTERP and no DT_NEEDED means
+# the artifact requires nothing of the host, so both Linux keys are BARE.
+# Tagging them `+libc.musl` would be a false requirement that hid them from
+# every glibc host.
+#
+# A bare key claims universality, so it must prove it: ubuntu (glibc) + alpine
+# (musl) + fedora (different glibc vintage). The alpine leg IS the proof —
+# drop it and the universal claim is merely asserted.
+#
+# A future package here whose libc measurement differs must restate this whole
+# block in its own spec — see the shallow-merge warning at the top.
+platforms:
+  linux/amd64:
+    runner: ubuntu-latest
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  linux/arm64:
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  darwin/amd64:
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 — GitHub's
+    # native macos-13 Intel pool is exhausted and deadlocks the push job.
+    runner: macos-14
+    prefix: ["arch", "-x86_64"]
+  darwin/arm64:
+    runner: macos-14
+    shell: bash
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
+  # No windows/arm64: upstream ships a SINGLE, arch-less `shellcheck-vX.Y.Z.zip`
+  # whose payload is `PE32+ … x86-64` (verified on v0.11.0). There is no ARM64
+  # PE to publish, and claiming the key would either duplicate the amd64 asset
+  # under a false arch or resolve to zero assets and be silently skipped.
+  #
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine, and the key is rejected at spec load.
+
+notify:
+  discord:
+    webhook_secret: OCX_MIRROR_DISCORD_HOOK
+    user_id: "227748867204972545"  # pinged in-message on failures

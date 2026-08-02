@@ -1,0 +1,121 @@
+extends: ../mirror-base.yml
+
+name: shellcheck
+
+# Logical index package `shellcheck/shellcheck` at the physical path
+# `ghcr.io/ocx-contrib/shellcheck/shellcheck` — slash segments, never
+# hyphen-flattened. The first segment must be this repo's own GitHub owner:
+# GITHUB_TOKEN only authorises packages owned by the repo the workflow runs in.
+#
+# Tool-as-namespace: the namespace is identity, not provenance. `koalaman` is a
+# personal handle, so the tool names itself and the upstream owner is recorded
+# in `source:` below.
+#
+# Succeeds the flat `ocx.sh/shellcheck` coordinate this repository published
+# before the grouped layout.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/shellcheck/shellcheck
+
+source:
+  type: github_release
+  owner: koalaman
+  repo: shellcheck
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# Upstream ships ONE Linux build per arch. The `.tar.gz`/`.tar.xz` pair is a
+# COMPRESSION split of the same binary, not a gnu/musl split — there is no libc
+# variant to choose between. Measured on v0.11.0:
+#
+#   $ file shellcheck-v0.11.0/shellcheck   # from …linux.x86_64.tar.xz
+#   ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked,
+#     BuildID[sha1]=b26f8179…, stripped
+#   $ readelf -l … | grep INTERP  → (none)
+#   $ readelf -d … | grep NEEDED  → (none)
+#   $ file shellcheck-v0.11.0/shellcheck   # from …linux.aarch64.tar.xz
+#   ELF 64-bit LSB executable, ARM aarch64, statically linked, …
+#
+# No PT_INTERP and no DT_NEEDED means the artifact requires nothing of the
+# host, so both Linux keys are BARE — no `+libc.*` suffix. Container legs
+# (ubuntu + alpine + fedora) live in ../mirror-base.yml and are what turn that
+# claim into evidence.
+#
+# ─── Scope (verified against v0.10.0, below the floor, and v0.11.0) ─────────
+#
+# Upstream also publishes, and this mirror deliberately does not carry:
+#   linux.armv6hf, linux.riscv64   — no GHA runner
+#   *.tar.gz                       — the same binaries as the .tar.xz set,
+#                                    added at v0.11.0, worse compression
+#
+# The anchored ^…$ regexes are what keep those out. Resolution verified BOTH
+# ways at both versions: each of the five patterns matches EXACTLY one asset. A
+# pattern matching zero is silently skipped, not an error — it would yield a
+# green run with a missing platform; two matches is a loud ambiguity error.
+# The `^shellcheck-v\d+\.\d+\.\d+` prefix is what makes the Windows pattern
+# safe: `.*\.zip$` alone would go ambiguous the day upstream ships any second
+# zip (a per-arch Windows build, a source zip).
+assets:
+  linux/amd64:
+    - "^shellcheck-v\\d+\\.\\d+\\.\\d+\\.linux\\.x86_64\\.tar\\.xz$"
+  linux/arm64:
+    - "^shellcheck-v\\d+\\.\\d+\\.\\d+\\.linux\\.aarch64\\.tar\\.xz$"
+  darwin/amd64:
+    - "^shellcheck-v\\d+\\.\\d+\\.\\d+\\.darwin\\.x86_64\\.tar\\.xz$"
+  darwin/arm64:
+    - "^shellcheck-v\\d+\\.\\d+\\.\\d+\\.darwin\\.aarch64\\.tar\\.xz$"
+  windows/amd64:
+    # The one Windows asset carries no os/arch in its name — it is just
+    # `shellcheck-vX.Y.Z.zip`, and its payload is `PE32+ … x86-64`.
+    - "^shellcheck-v\\d+\\.\\d+\\.\\d+\\.zip$"
+
+# The Linux and macOS tarballs wrap the payload in a versioned directory
+# (shellcheck-vX.Y.Z/{LICENSE.txt,README.txt,shellcheck}) → strip 1. The
+# Windows zip is flat (shellcheck.exe at the root) → strip 0. Both land the
+# executable directly at the content root, so a single metadata.json
+# (PATH = ${installPath}) serves every platform.
+asset_type:
+  type: archive
+  strip_components:
+    default: 1
+    platforms:
+      windows/amd64: 0
+
+metadata:
+  default: metadata.json
+
+catalog:
+  # `catalog.*` resolves against THIS spec's directory. Upstream ships no
+  # vector mark and the project website serves none, so the PNG that has always
+  # shipped with this mirror is the source of truth — there is no logo.svg to
+  # point at.
+  logo: logo.png
+
+versions:
+  min: "0.11.0"
+  new_per_run: 5
+  poll_interval: "0 */6 * * *"
+
+tests:
+  # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default` and
+  # `catalog.logo` above, which resolve against this spec's own directory.
+  - name: smoke
+    script: shellcheck/tests/smoke.star
+
+annotations:
+  # From the Phase 1.5 license gate:
+  #   $ gh api repos/koalaman/shellcheck/license --jq '.license.spdx_id'
+  #   GPL-3.0
+  # GitHub reports the deprecated umbrella id. The per-file headers disambiguate
+  # it — shellcheck.hs: "either version 3 of the License, or (at your option)
+  # any later version" — so the precise SPDX expression is GPL-3.0-or-later.
+  # Strong copyleft: NOTICE.md carries the Corresponding Source conveyance the
+  # license gate requires.
+  org.opencontainers.image.licenses: "GPL-3.0-or-later"
+
+announce:
+  # Spelled out, not derived from target.repository — the logical name and the
+  # physical path are related by convention only.
+  package: shellcheck/shellcheck
+  fork: ocx-contrib/index
